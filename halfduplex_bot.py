@@ -4,7 +4,7 @@ Mumble Half-Duplex Communication Bot
 Implements push-to-talk style communication in Mumble channels
 """
 
-from pymumble import Mumble
+import pymumble_py3
 import time
 import logging
 import signal
@@ -48,7 +48,7 @@ class HalfDuplexBot:
         """Connect to Mumble server"""
         self.logger.info(f"Connecting to {self.config['server']}:{self.config['port']}")
 
-        self.mumble = Mumble(
+        self.mumble = pymumble_py3.Mumble(
             self.config['server'],
             self.config['username'],
             port=self.config['port'],
