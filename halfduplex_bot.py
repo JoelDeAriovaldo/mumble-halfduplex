@@ -295,10 +295,19 @@ def load_config(config_file=None):
     if config_file:
         config = configparser.ConfigParser()
         config.read(config_file)
-        
+
         if 'bot' in config:
             CONFIG.update(dict(config['bot']))
-            
+            # Convert numeric values
+            if 'port' in CONFIG:
+                CONFIG['port'] = int(CONFIG['port'])
+            if 'speak_delay' in CONFIG:
+                CONFIG['speak_delay'] = float(CONFIG['speak_delay'])
+            if 'restore_delay' in CONFIG:
+                CONFIG['restore_delay'] = float(CONFIG['restore_delay'])
+            if 'debug' in CONFIG:
+                CONFIG['debug'] = CONFIG['debug'].lower() == 'true'
+
     return CONFIG
 
 
