@@ -79,9 +79,9 @@ class HalfDuplexBot:
         # Debug: Log initial users in channel
         self._log_channel_users()
 
-    def on_user_updated(self, user, **kwargs):
+    def on_user_updated(self, user, actions):
         """DEBUG: Log user updates"""
-        self.logger.debug(f"User updated: {user.get('name', 'Unknown')} - {kwargs}")
+        self.logger.debug(f"User updated: {user.get('name', 'Unknown')} - Actions: {actions}")
 
     def on_sound_received(self, user, soundchunk):
         """Handle incoming audio to detect speaking users"""
