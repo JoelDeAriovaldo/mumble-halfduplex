@@ -3,8 +3,6 @@
 Mumble Half-Duplex Communication Bot
 Implements push-to-talk style communication in Mumble channels
 """
-from unittest import result
-
 import pymumble_py3
 import time
 import logging
@@ -15,7 +13,6 @@ from datetime import datetime
 import configparser
 
 
-# Add this debug function to the HalfDuplexBot class
 class HalfDuplexBot:
     def __init__(self, config):
         self.config = config
@@ -49,7 +46,7 @@ class HalfDuplexBot:
         # Set callbacks
         self.mumble.callbacks.set_callback('sound_received', self.on_sound_received)
         self.mumble.callbacks.set_callback('connected', self.on_connected)
-        self.mumble.callbacks.set_callback('user_updated', self.on_user_updated)  # NEW
+        self.mumble.callbacks.set_callback('user_updated', self.on_user_updated)
 
         # Start connection
         self.mumble.start()
@@ -80,6 +77,10 @@ class HalfDuplexBot:
         # Debug: Log initial users in channel
         self._log_channel_users()
 
+        # Check if bot has permissions
+        myself = self.mumble.users.myself
+        self.logger.info(f"Bot info: {myself}")
+
     def on_user_updated(self, user, actions):
         """DEBUG: Log user updates"""
         self.logger.debug(f"User updated: {user.get('name', 'Unknown')} - Actions: {actions}")
@@ -100,6 +101,10 @@ class HalfDuplexBot:
 
         user_id = user['session']
         username = user['name']
+
+        # Don't process audio from the bot itself
+        if username == self.config['username']:
+            return
 
         self.logger.info(f"VOICE ACTIVITY: {username} is speaking")
 
@@ -133,33 +138,29 @@ class HalfDuplexBot:
             timer.start()
             self.logger.debug(f"Set restore timer for {username}")
 
-        def _revoke_others_speak(self, speaker_id):
-            """Revoke speak permission from all users except the speaker"""
-            self.logger.info(f"EXECUTING MUTE: Speaker ID {speaker_id}")
+    def _revoke_others_speak(self, speaker_id):
+        """Revoke speak permission from all users except the speaker"""
+        self.logger.info(f"EXECUTING MUTE: Speaker ID {speaker_id}")
 
-            # Verificar permissões do bot
-            myself = self.mumble.users.myself
-            self.logger.info(f"Bot permissions: {myself}")
+        # Get users in channel
+        users_in_channel = self._get_users_in_channel()
 
-            # Tentar mutar com tratamento de erro mais específico
-            try:
-                result = self.mumble.users[user['session']].mute()
-                self.logger.info(f"Mute command sent, result: {result}")
-            except PermissionError as e:
-                self.logger.error(f"Permission denied: {e}")
-            except Exception as e:
-                self.logger.error(f"Mute failed: {type(e).__name__}: {e}")
+        # Check bot permissions
+        myself = self.mumble.users.myself
+        self.logger.info(f"Bot permissions check - myself: {myself}")
 
-        # for user in users_in_channel:
-        #     if user['session'] != speaker_id:
-        #         try:
-        #             self.logger.info(f"MUTING: {user['name']}")
-        #             # Try different mute methods
-        #             self.mumble.users[user['session']].mute(True)
-        #             self.mumble.users.myself.mute()
-        #             self.logger.info(f"Mute result for {user['name']}: {result}")
-        #         except Exception as e:
-        #             self.logger.error(f"Failed to mute {user['name']}: {e}")
+        for user in users_in_channel:
+            if user['session'] != speaker_id and user['name'] != self.config['username']:
+                try:
+                    self.logger.info(f"Attempting to mute: {user['name']}")
+                    # Try server-side mute
+                    user_obj = self.mumble.users[user['session']]
+                    user_obj.mute()
+                    self.logger.info(f"Mute command sent for {user['name']}")
+                except PermissionError as e:
+                    self.logger.error(f"Permission denied: {e}")
+                except Exception as e:
+                    self.logger.error(f"Failed to mute {user['name']}: {type(e).__name__}: {e}")
 
     def _restore_speak_permissions(self, user_id):
         """Restore speak permissions when user stops speaking"""
@@ -178,12 +179,14 @@ class HalfDuplexBot:
             users_in_channel = self._get_users_in_channel()
 
             for user in users_in_channel:
-                try:
-                    self.logger.info(f"UNMUTING: {user['name']}")
-                    result = self.mumble.users[user['session']].unmute()
-                    self.logger.info(f"Unmute result for {user['name']}: {result}")
-                except Exception as e:
-                    self.logger.error(f"Failed to unmute {user['name']}: {e}")
+                if user['name'] != self.config['username']:
+                    try:
+                        self.logger.info(f"Attempting to unmute: {user['name']}")
+                        user_obj = self.mumble.users[user['session']]
+                        user_obj.unmute()
+                        self.logger.info(f"Unmute command sent for {user['name']}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to unmute {user['name']}: {e}")
 
     def _get_users_in_channel(self):
         """Get list of users in target channel"""
@@ -235,7 +238,8 @@ class HalfDuplexBot:
             users = self._get_users_in_channel()
             for user in users:
                 try:
-                    self.mumble.users[user['session']].unmute()
+                    user_obj = self.mumble.users[user['session']]
+                    user_obj.unmute()
                 except:
                     pass
 
@@ -244,7 +248,6 @@ class HalfDuplexBot:
         self.logger.info("Bot stopped")
 
 
-# Rest of the code remains the same...
 def load_config(config_file=None):
     """Load configuration from file"""
     CONFIG = {
@@ -280,6 +283,7 @@ def load_config(config_file=None):
 
 def main():
     """Main entry point"""
+    bot = None
 
     def signal_handler(sig, frame):
         if bot:
@@ -291,7 +295,6 @@ def main():
 
     config = load_config('halfduplex.conf')
 
-    global bot
     bot = HalfDuplexBot(config)
 
     try:
@@ -299,7 +302,8 @@ def main():
         bot.run()
     except Exception as e:
         logging.error(f"Bot error: {e}")
-        bot.stop()
+        if bot:
+            bot.stop()
 
 
 if __name__ == '__main__':
